@@ -1,4 +1,3 @@
-#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,23 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import os.path as osp
+import numpy as np
+import tvm
 
-set -e
-set -u
-set -o pipefail
+CWD = osp.abspath(osp.dirname(__file__))
 
-cd /usr
-git clone https://github.com/apache/tvm tvm --recursive
-cd /usr/tvm
-# checkout a hash-tag
-git checkout 4b13bf668edc7099b38d463e5db94ebc96c80470
 
-echo set\(USE_LLVM llvm-config-8\) >> config.cmake
-echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
-echo set\(USE_BLAS openblas\) >> config.cmake
-echo set\(USE_SGX /opt/sgxsdk\) >> config.cmake
-echo set\(RUST_SGX_SDK /opt/rust-sgx-sdk\) >> config.cmake
-mkdir -p build
-cd build
-cmake ..
-make -j10
+def main():
+    ctx = tvm.context('cpu', 0)
+    model = tvm.module.load(osp.join(CWD, 'build', 'enclave.signed.so'))
+    inp = tvm.nd.array(np.ones((1, 3, 224, 224), dtype='float32'), ctx)
+    out = tvm.nd.array(np.empty((1, 1000), dtype='float32'), ctx)
+    model(inp, out)
+    if abs(out.asnumpy().sum() - 1) < 0.001:
+        print('It works!')
+    else:
+        print('It doesn\'t work!')
+        exit(1)
+
+
+if __name__ == '__main__':
+    main()
